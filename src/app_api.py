@@ -1,0 +1,714 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>InventoryAI</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    .tab-btn[aria-selected="true"] { background: #111827; color: white; }
+    .tab-btn[aria-selected="false"] { background: white; color: #111827; }
+    .tab-btn { -webkit-tap-highlight-color: transparent; }
+    .tab-btn:focus { outline: none; }
+    .tab-btn:focus-visible { outline: 2px solid rgba(59,130,246,0.6); outline-offset: 2px; }
+
+    .card { border: 1px solid #e5e7eb; border-radius: 16px; background: white; }
+    .muted { color: #6b7280; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .hide { display: none !important; }
+  </style>
+</head>
+
+<body class="bg-gray-50 text-gray-900">
+  <div class="max-w-6xl mx-auto px-4 py-6">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">InventoryAI</h1>
+        <p class="text-sm muted mt-1">Upload sales data → forecast unit demand → reorder recommendations + insights.</p>
+      </div>
+
+      <!-- Menu -->
+      <div class="flex items-center gap-2">
+        <button class="tab-btn text-sm px-3 py-2 rounded-xl border border-gray-200" data-tab="tab-dashboard" aria-selected="true">Dashboard</button>
+        <button class="tab-btn text-sm px-3 py-2 rounded-xl border border-gray-200" data-tab="tab-insights" aria-selected="false">Insights</button>
+        <button class="tab-btn text-sm px-3 py-2 rounded-xl border border-gray-200" data-tab="tab-ai" aria-selected="false">AI Analyst</button>
+        <button class="tab-btn text-sm px-3 py-2 rounded-xl border border-gray-200" data-tab="tab-reports" aria-selected="false">Reports</button>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div class="mt-4 card p-4 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <span id="backendDot" class="inline-block w-2.5 h-2.5 rounded-full bg-gray-300"></span>
+        <span id="backendStatus" class="text-sm muted">Checking backend…</span>
+      </div>
+      <div class="text-sm muted">
+        Forecast model: <span class="font-medium text-gray-900">Prophet (Units)</span>
+      </div>
+    </div>
+
+    <!-- Main layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+
+      <!-- Left: Upload + Controls -->
+      <div class="lg:col-span-1">
+        <div class="card p-4">
+          <h2 class="font-semibold">Upload CSV</h2>
+          <p class="text-sm muted mt-1">We’ll automatically parse common POS exports.</p>
+
+          <div class="mt-3">
+            <input id="fileInput" type="file" accept=".csv,text/csv" class="block w-full text-sm" />
+          </div>
+
+          <div class="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs muted">Forecast horizon</label>
+              <select id="horizonSelect" class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+                <option value="7" selected>7 days</option>
+                <option value="14">14 days</option>
+                <option value="30">30 days</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs muted">Search items</label>
+              <input id="searchInput" type="text" placeholder="e.g. Coke, Milk"
+                     class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+            </div>
+          </div>
+
+          <div class="mt-4 flex gap-2">
+            <button id="btnForecast"
+              class="px-3 py-2 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700">
+              Generate forecast
+            </button>
+            <button id="btnClear"
+              class="px-3 py-2 rounded-xl text-sm font-medium border border-gray-200 hover:bg-gray-100">
+              Clear
+            </button>
+          </div>
+
+          <div id="uploadMeta" class="mt-3 text-xs muted"></div>
+          <div id="errorBox" class="mt-4 hide rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"></div>
+        </div>
+
+        <!-- KPI cards -->
+        <div class="grid grid-cols-2 gap-3 mt-4">
+          <div class="card p-4">
+            <div class="text-xs muted">Days covered</div>
+            <div id="kpiDays" class="text-xl font-semibold mt-1">—</div>
+          </div>
+          <div class="card p-4">
+            <div class="text-xs muted">Items detected</div>
+            <div id="kpiItems" class="text-xl font-semibold mt-1">—</div>
+          </div>
+          <div class="card p-4">
+            <div class="text-xs muted">Records processed</div>
+            <div id="kpiRecords" class="text-xl font-semibold mt-1">—</div>
+          </div>
+          <div class="card p-4">
+            <div class="text-xs muted">Horizon</div>
+            <div id="kpiHorizon" class="text-xl font-semibold mt-1">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Tabs content -->
+      <div class="lg:col-span-2 space-y-4">
+
+        <!-- Dashboard tab -->
+        <section id="tab-dashboard" class="card p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="font-semibold">Reorder recommendations</h2>
+              <p class="text-sm muted mt-1">Total predicted demand (units) over your selected horizon.</p>
+            </div>
+            <div class="text-xs muted">Sort: highest demand first</div>
+          </div>
+
+          <div class="mt-3 overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="text-left text-xs muted border-b">
+                  <th class="py-2 pr-4">Item</th>
+                  <th class="py-2 pr-4">Category</th>
+                  <th class="py-2 pr-4 text-right">Units</th>
+                  <th class="py-2 pr-0 text-right">Est. $</th>
+                </tr>
+              </thead>
+              <tbody id="forecastTable" class="divide-y"></tbody>
+            </table>
+          </div>
+
+          <div id="emptyForecast" class="mt-4 text-sm muted">
+            Upload a CSV and click <span class="font-medium text-gray-900">Generate forecast</span>.
+          </div>
+        </section>
+
+        <!-- Insights tab -->
+        <section id="tab-insights" class="card p-4 hide">
+          <div>
+            <h2 class="font-semibold">Insights</h2>
+            <p class="text-sm muted mt-1">Signals based on recent sales vs forecasted demand.</p>
+          </div>
+
+          <!-- Trend chart -->
+          <div class="mt-4">
+            <div class="flex items-center justify-between">
+              <div class="text-sm font-medium">Demand trend (recent)</div>
+              <div class="text-xs muted">Total units per day</div>
+            </div>
+            <div class="mt-2" style="height: 220px;">
+              <canvas id="trendChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Insight grids -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+            <div class="card p-4">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-medium">Stockout risk</div>
+                <span class="text-xs muted" id="stockoutCount">—</span>
+              </div>
+              <div id="stockoutList" class="mt-3 space-y-2"></div>
+              <div id="stockoutEmpty" class="mt-3 text-sm muted hide">No strong stockout risks detected.</div>
+            </div>
+
+            <div class="card p-4">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-medium">Slow movers</div>
+                <span class="text-xs muted" id="slowCount">—</span>
+              </div>
+              <div id="slowList" class="mt-3 space-y-2"></div>
+              <div id="slowEmpty" class="mt-3 text-sm muted hide">No slow movers detected.</div>
+            </div>
+
+            <div class="card p-4">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-medium">Rising demand</div>
+                <span class="text-xs muted" id="riseCount">—</span>
+              </div>
+              <div id="riseList" class="mt-3 space-y-2"></div>
+              <div id="riseEmpty" class="mt-3 text-sm muted hide">No rising-demand flags detected.</div>
+            </div>
+
+            <div class="card p-4">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-medium">Declining demand</div>
+                <span class="text-xs muted" id="declineCount">—</span>
+              </div>
+              <div id="declineList" class="mt-3 space-y-2"></div>
+              <div id="declineEmpty" class="mt-3 text-sm muted hide">No declining-demand flags detected.</div>
+            </div>
+          </div>
+
+          <!-- Category share -->
+          <div class="card p-4 mt-4">
+            <div class="flex items-center justify-between">
+              <div class="text-sm font-medium">Category demand share</div>
+              <div class="text-xs muted">Forecast units by category</div>
+            </div>
+            <div id="categoryList" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2"></div>
+            <div id="categoryEmpty" class="mt-3 text-sm muted hide">No category data available.</div>
+          </div>
+        </section>
+
+        <!-- AI Analyst tab -->
+        <section id="tab-ai" class="card p-4 hide">
+          <div>
+            <h2 class="font-semibold">AI Analyst</h2>
+            <p class="text-sm muted mt-1">Powered by <span class="font-medium text-gray-900">GPT-4o mini</span></p>
+          </div>
+
+          <div class="mt-4 card p-4 bg-gray-50 border-gray-200">
+            <div class="text-sm font-medium">Summary</div>
+            <div id="aiSummary" class="mt-2 text-sm text-gray-800 leading-relaxed">
+              Generate a forecast to see an AI summary.
+            </div>
+          </div>
+
+          <div class="mt-4">
+            <div class="text-sm font-medium">Ask a question</div>
+            <div class="mt-2 flex gap-2">
+              <input id="aiQuestion" type="text"
+                     placeholder="Powered by GPT-4o mini — ask about reorder, demand, and risk flags."
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+              <button id="btnAsk"
+                class="px-3 py-2 rounded-xl text-sm font-medium bg-gray-900 text-white hover:bg-black">
+                Ask
+              </button>
+            </div>
+            <div id="aiAnswer" class="mt-3 text-sm text-gray-800 leading-relaxed"></div>
+          </div>
+        </section>
+
+        <!-- Reports tab -->
+        <section id="tab-reports" class="card p-4 hide">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h2 class="font-semibold">Reports</h2>
+              <p class="text-sm muted mt-1">Download a clean PDF report for the business owner.</p>
+            </div>
+            <button id="btnPDF"
+              class="px-3 py-2 rounded-xl text-sm font-medium border border-gray-200 hover:bg-gray-100">
+              Download PDF
+            </button>
+          </div>
+
+          <div id="pdfError" class="mt-4 hide rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"></div>
+        </section>
+
+      </div>
+    </div>
+
+    <div class="mt-6 text-xs muted">
+      <span class="mono">Backend:</span> <span class="mono" id="apiBaseLabel"></span>
+    </div>
+  </div>
+
+<script>
+  // =========================
+  // API base (Netlify-ready)
+  // - Local: http://127.0.0.1:5000
+  // - Production: same-origin "/api" (use Netlify redirect to your Render backend)
+  // =========================
+  const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  const API_BASE = window.API_BASE || (isLocal ? "http://127.0.0.1:5000" : "");
+  document.getElementById("apiBaseLabel").textContent = API_BASE || "(same origin)";
+
+  // =========================
+  // State
+  // =========================
+  let rawCSV = "";
+  let lastResult = null;
+  let trendChart = null;
+
+  // =========================
+  // Helpers
+  // =========================
+  const $ = (id) => document.getElementById(id);
+  function show(el){ el.classList.remove("hide"); }
+  function hide(el){ el.classList.add("hide"); }
+
+  function setError(msg){
+    const box = $("errorBox");
+    if (!msg) { hide(box); box.textContent = ""; return; }
+    box.textContent = msg;
+    show(box);
+  }
+
+  function setPdfError(msg){
+    const box = $("pdfError");
+    if (!msg) { hide(box); box.textContent = ""; return; }
+    box.textContent = msg;
+    show(box);
+  }
+
+  function fmt(n){
+    if (n === null || n === undefined) return "—";
+    const x = Number(n);
+    if (!isFinite(x)) return "—";
+    return x.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  }
+
+  function fmtMoney(n){
+    if (n === null || n === undefined) return "—";
+    const x = Number(n);
+    if (!isFinite(x)) return "—";
+    return x.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  }
+
+  function escapeHtml(s){
+    return String(s ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function insightRow(title, right, sub){
+    return `
+      <div class="flex items-start justify-between gap-3 p-3 rounded-xl border border-gray-200 bg-white">
+        <div class="min-w-0">
+          <div class="text-sm font-medium truncate">${escapeHtml(title)}</div>
+          ${sub ? `<div class="text-xs muted mt-0.5">${escapeHtml(sub)}</div>` : ""}
+        </div>
+        <div class="text-xs text-gray-700 whitespace-nowrap">${escapeHtml(right)}</div>
+      </div>
+    `;
+  }
+
+  // =========================
+  // Tabs
+  // =========================
+  function activateTab(tabId){
+    const tabs = ["tab-dashboard","tab-insights","tab-ai","tab-reports"];
+    tabs.forEach(id => {
+      const el = $(id);
+      if (!el) return;
+      if (id === tabId) el.classList.remove("hide");
+      else el.classList.add("hide");
+    });
+
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      const isActive = btn.dataset.tab === tabId;
+      btn.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+  }
+
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => activateTab(btn.dataset.tab));
+  });
+
+  // =========================
+  // Backend health check
+  // =========================
+  async function checkBackend(){
+    try{
+      const res = await fetch(`${API_BASE}/api/health`);
+      if (!res.ok) throw new Error("health failed");
+      const js = await res.json();
+      $("backendDot").className = "inline-block w-2.5 h-2.5 rounded-full bg-green-500";
+      $("backendStatus").textContent = `Backend connected • ${js.model || "ok"}`;
+    }catch(e){
+      $("backendDot").className = "inline-block w-2.5 h-2.5 rounded-full bg-red-500";
+      $("backendStatus").textContent = "Backend not running. Start Flask on port 5000 first.";
+    }
+  }
+
+  // =========================
+  // File upload
+  // =========================
+  $("fileInput").addEventListener("change", async (ev) => {
+    setError("");
+    setPdfError("");
+    lastResult = null;
+    rawCSV = "";
+
+    const file = ev.target.files?.[0];
+    if (!file) return;
+
+    rawCSV = await file.text();
+    $("uploadMeta").textContent = `${file.name} • ${(file.size/1024).toFixed(1)} KB`;
+    $("emptyForecast").textContent = "Click Generate forecast to see recommendations.";
+  });
+
+  // =========================
+  // Forecast fetch
+  // =========================
+  async function runForecast(){
+    setError("");
+    setPdfError("");
+    $("aiAnswer").textContent = "";
+
+    if (!rawCSV || rawCSV.trim().length < 5){
+      setError("Please upload a CSV file first.");
+      return;
+    }
+
+    const horizon_days = Number($("horizonSelect").value) || 7;
+
+    $("btnForecast").disabled = true;
+    $("btnForecast").textContent = "Generating…";
+
+    try{
+      const res = await fetch(`${API_BASE}/api/forecast`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ csv: rawCSV, horizon_days })
+      });
+
+      const js = await res.json();
+      if (!res.ok){
+        throw new Error(js?.error || `Server error ${res.status}`);
+      }
+
+      lastResult = js;
+      renderAll();
+      activateTab("tab-dashboard");
+    }catch(e){
+      setError(String(e.message || e));
+    }finally{
+      $("btnForecast").disabled = false;
+      $("btnForecast").textContent = "Generate forecast";
+    }
+  }
+
+  $("btnForecast").addEventListener("click", runForecast);
+
+  $("btnClear").addEventListener("click", () => {
+    rawCSV = "";
+    lastResult = null;
+    $("fileInput").value = "";
+    $("uploadMeta").textContent = "";
+    $("forecastTable").innerHTML = "";
+    $("emptyForecast").textContent = "Upload a CSV and click Generate forecast.";
+    $("kpiDays").textContent = "—";
+    $("kpiItems").textContent = "—";
+    $("kpiRecords").textContent = "—";
+    $("kpiHorizon").textContent = "—";
+    $("aiSummary").textContent = "Generate a forecast to see an AI summary.";
+    $("aiAnswer").textContent = "";
+    $("searchInput").value = "";
+    clearInsightsUI();
+    setError("");
+    setPdfError("");
+    if (trendChart){ trendChart.destroy(); trendChart = null; }
+    activateTab("tab-dashboard");
+  });
+
+  // Search filter
+  $("searchInput").addEventListener("input", () => {
+    if (!lastResult?.forecast) return;
+    renderForecastTable();
+  });
+
+  // =========================
+  // Rendering
+  // =========================
+  function renderAll(){
+    renderKPIs();
+    renderForecastTable();
+    renderInsights();
+    renderAISummary();
+  }
+
+  function renderKPIs(){
+    const m = lastResult?.metrics || {};
+    $("kpiDays").textContent = m.DAYS_COVERED ?? "—";
+    $("kpiItems").textContent = m.NUM_ITEMS ?? "—";
+    $("kpiRecords").textContent = m.TOTAL_RECORDS ?? "—";
+    $("kpiHorizon").textContent = `${m.HORIZON_DAYS ?? ($("horizonSelect").value || "—")}d`;
+  }
+
+  function renderForecastTable(){
+    const forecast = lastResult?.forecast || [];
+    const q = ($("searchInput").value || "").trim().toLowerCase();
+
+    const rows = forecast.filter(r => {
+      if (!q) return true;
+      const name = String(r.item_name || "").toLowerCase();
+      const cat = String(r.category || "").toLowerCase();
+      return name.includes(q) || cat.includes(q);
+    });
+
+    const tbody = $("forecastTable");
+    tbody.innerHTML = "";
+
+    if (!rows.length){
+      show($("emptyForecast"));
+      $("emptyForecast").textContent = forecast.length ? "No items match your search." : "Upload a CSV and click Generate forecast.";
+      return;
+    }
+
+    hide($("emptyForecast"));
+
+    rows.forEach(r => {
+      const tr = document.createElement("tr");
+      const estCost = r.projected_cost;
+      tr.innerHTML = `
+        <td class="py-2 pr-4">
+          <div class="font-medium">${escapeHtml(r.item_name || "")}</div>
+        </td>
+        <td class="py-2 pr-4">
+          <div class="text-xs muted">${escapeHtml(r.category || "General")}</div>
+        </td>
+        <td class="py-2 pr-4 text-right">
+          <div class="font-semibold">${fmt(r.reorder_qty)}</div>
+        </td>
+        <td class="py-2 pr-0 text-right">
+          <div class="text-sm">${estCost != null ? fmtMoney(estCost) : "—"}</div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function clearInsightsUI(){
+    ["stockoutList","slowList","riseList","declineList","categoryList"].forEach(id => $(id).innerHTML = "");
+    ["stockoutEmpty","slowEmpty","riseEmpty","declineEmpty","categoryEmpty"].forEach(id => hide($(id)));
+    ["stockoutCount","slowCount","riseCount","declineCount"].forEach(id => $(id).textContent = "—");
+  }
+
+  function renderInsights(){
+    clearInsightsUI();
+
+    const insights = lastResult?.insights || {};
+
+    // Trend chart
+    renderTrendChart(lastResult?.trend || []);
+
+    function renderBlock(listId, emptyId, countId, rows, mode){
+      $(countId).textContent = `${rows.length} flagged`;
+      if (!rows.length) show($(emptyId));
+      rows.forEach(s => {
+        const right = `${fmt(s.forecast_total_units)} units`;
+        const sub = `Baseline ${fmt(s.baseline_daily_units)}/day • ${fmt(s.growth_ratio)}×`;
+        $(listId).insertAdjacentHTML("beforeend", insightRow(s.item_name, right, sub));
+      });
+    }
+
+    renderBlock("stockoutList","stockoutEmpty","stockoutCount", insights.stockout_risks || []);
+    renderBlock("slowList","slowEmpty","slowCount", insights.slow_movers || []);
+    renderBlock("riseList","riseEmpty","riseCount", insights.rising_demand || []);
+    renderBlock("declineList","declineEmpty","declineCount", insights.declining_demand || []);
+
+    // Category share
+    const cats = insights.category_demand || [];
+    if (!cats.length) show($("categoryEmpty"));
+    cats.forEach(c => {
+      $("categoryList").insertAdjacentHTML("beforeend", `
+        <div class="flex items-center justify-between p-3 rounded-xl border border-gray-200 bg-white">
+          <div class="min-w-0">
+            <div class="text-sm font-medium truncate">${escapeHtml(c.category)}</div>
+            <div class="text-xs muted mt-0.5">${fmt(c.share)}% of forecasted units</div>
+          </div>
+          <div class="text-sm font-semibold">${fmt(c.forecast_units)}</div>
+        </div>
+      `);
+    });
+  }
+
+  function renderTrendChart(trend){
+    const ctx = $("trendChart").getContext("2d");
+    const labels = trend.map(p => p.date);
+    const values = trend.map(p => Number(p.total_units || 0));
+
+    if (trendChart){
+      trendChart.destroy();
+      trendChart = null;
+    }
+
+    trendChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "Total units",
+          data: values,
+          borderColor: "#2563eb",
+          backgroundColor: "rgba(37, 99, 235, 0.18)",
+          borderWidth: 2,
+          pointRadius: 2,
+          tension: 0.25,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#6b7280" }, grid: { color: "rgba(229,231,235,0.65)" } },
+          y: { ticks: { color: "#6b7280" }, grid: { color: "rgba(229,231,235,0.65)" } }
+        }
+      }
+    });
+  }
+
+  function renderAISummary(){
+    const s = lastResult?.ai_insight;
+    $("aiSummary").textContent = s ? s : "Generate a forecast to see an AI summary.";
+  }
+
+  // =========================
+  // AI chat
+  // =========================
+  $("btnAsk").addEventListener("click", async () => {
+    $("aiAnswer").textContent = "";
+    const q = ($("aiQuestion").value || "").trim();
+    if (!q){ $("aiAnswer").textContent = "Type a question first."; return; }
+    if (!lastResult){ $("aiAnswer").textContent = "Generate a forecast first."; return; }
+
+    $("btnAsk").disabled = true;
+    $("btnAsk").textContent = "Asking…";
+
+    try{
+      const res = await fetch(`${API_BASE}/api/chat`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          question: q,
+          forecast: lastResult.forecast,
+          metrics: lastResult.metrics,
+          insights: lastResult.insights,
+          horizon_days: lastResult.metrics?.HORIZON_DAYS || Number($("horizonSelect").value) || 7
+        })
+      });
+      const js = await res.json();
+      if (!res.ok) throw new Error(js?.error || `Server error ${res.status}`);
+      $("aiAnswer").textContent = js.response || "";
+    }catch(e){
+      $("aiAnswer").textContent = `Error: ${e.message || e}`;
+    }finally{
+      $("btnAsk").disabled = false;
+      $("btnAsk").textContent = "Ask";
+    }
+  });
+
+  // =========================
+  // PDF download
+  // =========================
+  $("btnPDF").addEventListener("click", async () => {
+    setPdfError("");
+    if (!lastResult){
+      setPdfError("Generate a forecast first.");
+      return;
+    }
+
+    $("btnPDF").disabled = true;
+    $("btnPDF").textContent = "Preparing…";
+
+    try{
+      const res = await fetch(`${API_BASE}/api/report/pdf`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          forecast: lastResult.forecast,
+          metrics: lastResult.metrics,
+          insights: lastResult.insights,
+          insight: lastResult.ai_insight || ""
+        })
+      });
+
+      const ct = res.headers.get("content-type") || "";
+      if (!res.ok){
+        let msg = `Server error ${res.status}`;
+        if (ct.includes("application/json")){
+          const js = await res.json();
+          msg = js?.error || msg;
+        }
+        throw new Error(msg);
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "InventoryAI_Report.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      URL.revokeObjectURL(url);
+    }catch(e){
+      setPdfError(String(e.message || e));
+    }finally{
+      $("btnPDF").disabled = false;
+      $("btnPDF").textContent = "Download PDF";
+    }
+  });
+
+  // Init
+  checkBackend();
+  activateTab("tab-dashboard");
+</script>
+</body>
+</html>
