@@ -220,3 +220,6 @@ wandb/
 
 # Python environment version specific
 .python-version
+
+# MacOS files
+.DS_Store

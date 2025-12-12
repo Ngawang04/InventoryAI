@@ -1,436 +1,767 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InventoryAI | Demand Forecast</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        .card { 
-            background-color: #ffffff;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .card:hover { 
-            transform: translateY(-4px); 
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
-        }
-        .metric-value { font-size: 2.25rem; font-weight: 700; }
-        .chart-container { min-height: 400px; max-width: 100%; }
-        #chatWindow { scrollbar-width: thin; scrollbar-color: #9ca3af #e5e7eb; }
-        #chatWindow::-webkit-scrollbar { width: 6px; }
-        #chatWindow::-webkit-scrollbar-thumb { background-color: #9ca3af; border-radius: 3px; }
-        .user-message { 
-            background-color: #3b82f6; color: white;
-            padding: 8px 12px; border-radius: 12px 12px 0 12px; 
-            max-width: 90%; margin-left: auto; text-align: left; word-wrap: break-word;
-        }
-        .analyst-message { 
-            background-color: #e5e7eb; color: #1f2937;
-            padding: 8px 12px; border-radius: 12px 12px 12px 0; 
-            max-width: 90%; margin-right: auto; text-align: left; word-wrap: break-word;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>InventoryAI</title>
+
+  <!-- Tailwind (dev-friendly). For production, bundle Tailwind properly. -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    .tab-btn[aria-selected="true"] { background: #111827; color: white; }
+    .tab-btn[aria-selected="false"] { background: white; color: #111827; }
+    .card { border: 1px solid #e5e7eb; border-radius: 16px; background: white; }
+    .muted { color: #6b7280; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .hide { display: none !important; }
+  </style>
 </head>
-<body class="min-h-screen">
-    <div id="app" class="p-4 md:p-8 max-w-7xl mx-auto">
-        <!-- Header -->
-        <header class="bg-white shadow-md rounded-xl p-6 mb-8 flex justify-between items-center">
-            <div class="flex items-center">
-                 <svg class="w-10 h-10 text-indigo-600 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h12M3.75 3h16.5v13.5A2.25 2.25 0 0 1 18 18.75h-5.25a2.25 2.25 0 0 1-2.25-2.25V3.75m0 0h-3.75m3.75 0a2.25 2.25 0 0 1 2.25 2.25V11.25m6-7.5a2.25 2.25 0 0 0-2.25-2.25H3.75" />
-                </svg>
-                <h1 class="text-3xl font-extrabold text-gray-900">InventoryAI Pro</h1>
-            </div>
-            <span class="text-sm font-medium text-gray-500 hidden sm:block">Sales Forecasting (MVP)</span>
-        </header>
 
-        <!-- Main Dashboard Layout -->
-        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            <!-- Column 1: Controls & Status -->
-            <div class="lg:col-span-1 space-y-6">
-                <div class="card p-6 space-y-4">
-                    <h2 class="text-xl font-semibold text-gray-700 border-b pb-2">Forecast Controls</h2>
-                    
-                    <div>
-                        <label for="fileUpload" class="block text-sm font-medium text-gray-700 mb-2">Upload Sales Data (CSV)</label>
-                        <input type="file" id="fileUpload" accept=".csv"
-                               class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-                        <p class="text-xs text-gray-500 mt-2">
-                            **Input Requirements:** CSV must have a header row and >30 days of data.
-                            <br/>- 1. Date column (named 'ds' or 'date')
-                            <br/>- 2. Sales column (named 'y' or 'sales')
-                            <br/>- 3. Item column (named 'item' or 'product')
-                        </p>
-                    </div>
+<body class="bg-gray-50 text-gray-900">
+  <div class="max-w-6xl mx-auto px-4 py-6">
 
-                    <button id="forecastButton" 
-                            class="w-full bg-indigo-600 text-white p-3 rounded-xl font-bold hover:bg-indigo-700 transition duration-150 shadow-md flex items-center justify-center space-x-2">
-                        <svg id="loadingSpinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span id="buttonText">Generate Strategic Forecast</span>
-                    </button>
-                    <!-- Status message for errors or success -->
-                    <div id="statusMessage" class="text-sm font-medium text-center pt-2 hidden"></div>
-                </div>
+    <!-- Header -->
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">InventoryAI</h1>
+        <p class="text-sm muted mt-1">Upload sales data → forecast unit demand → reorder recommendations + insights.</p>
+      </div>
 
-                <!-- 
-                  *** UI/UX IMPROVEMENT ***
-                  The "Actionable AI Insight" box is REMOVED.
-                  It is now combined with the Chat Assistant for a seamless, modern experience.
-                -->
-
-                <!-- AI CHAT ASSISTANT (NOW LIVE) -->
-                <div id="aiChat" class="card p-6 space-y-4">
-                    <h2 class="text-xl font-semibold text-gray-700">💬 Chat with the AI Analyst</h2>
-                    <!-- The AI's initial summary will now appear here -->
-                    <div id="chatWindow" class="h-64 overflow-y-auto border p-2 rounded-lg bg-gray-50 text-sm space-y-3">
-                        <div class="analyst-message">Analyst: Hello! Please upload your sales data to begin.</div>
-                    </div>
-                    <!-- This is the new "ChatGPT-style" input bar -->
-                    <div class="relative">
-                        <input type="text" id="chatInput" placeholder="Upload data to start chat..." 
-                               class="w-full p-3 pr-12 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" disabled>
-                        <button id="sendChat" disabled class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-gray-300 text-gray-500 rounded-md cursor-not-allowed transition-colors">
-                            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L6 12Zm0 0h7.5" />
-                            </svg>
-                        </button>
-                    </div>
-                    <!-- Model Mention (as requested) -->
-                    <p class="text-xs text-center text-gray-400 mt-1">
-                        Powered by GPT-4o Mini
-                    </p>
-                </div>
-            </div>
-
-            <!-- Column 2 & 3: Metrics and Chart -->
-            <div class="lg:col-span-2 space-y-8">
-                
-                <!-- Metric Cards (NOW WITH ICONS) -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="card p-5 flex items-center space-x-4">
-                        <div class="flex-shrink-0 bg-red-100 rounded-full p-3">
-                            <svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.374c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
-                        </div>
-                        <div>
-                            <p class="text-sm font-medium text-gray-500 uppercase">Average Item Miss</p>
-                            <p class="metric-value text-red-500" data-metric="mae">N/A</p>
-                        </div>
-                    </div>
-                    <div class="card p-5 flex items-center space-x-4">
-                        <div class="flex-shrink-0 bg-emerald-100 rounded-full p-3">
-                            <svg class="h-6 w-6 text-emerald-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                        </div>
-                        <div>
-                            <p class="text-sm font-medium text-gray-500 uppercase">Forecast Accuracy</p>
-                            <p class="metric-value text-emerald-600" data-metric="mape">N/A</p>
-                        </div>
-                    </div>
-                    <div class="card p-5 flex items-center space-x-4">
-                        <div class="flex-shrink-0 bg-indigo-100 rounded-full p-3">
-                             <svg class="h-6 w-6 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1-1.414 1.414l-4.896 4.896A2.25 2.25 0 0 1 3 22.25V2.25a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 2.25v19.5m-18 0h18M9 11.25a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /></svg>
-                        </div>
-                        <div>
-                            <p class="text-sm font-medium text-gray-500 uppercase">Top Reorder Qty</p>
-                            <p class="metric-value text-indigo-600" data-metric="demand">N/A</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Chart Visualization (BAR CHART) -->
-                <div class="card p-6">
-                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Recommended Reorder Quantity (Next 7 Days)</h2>
-                    <div class="chart-container">
-                        <canvas id="forecastChart"></canvas>
-                        <p id="chartMessage" class="text-center text-gray-500 mt-4">Upload a file and click 'Generate Forecast' to view item-level recommendations.</p>
-                    </div>
-                </div>
-
-                <!-- Download Panel - ** BUG FIX: ID is now correct ** -->
-                <div class="card p-6">
-                    <h2 class="text-xl font-semibold text-gray-700 mb-3">Export Results</h2>
-                    <a id="downloadButton" 
-                            class="block w-full text-center bg-gray-400 text-white p-3 rounded-xl font-bold cursor-not-allowed no-underline">
-                        Download Reorder Plan (CSV)
-                    </a>
-                </div>
-            </div>
-        </main>
+      <!-- Menu -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button class="tab-btn text-sm px-3 py-2 rounded-xl border border-gray-200" data-tab="tab-dashboard" aria-selected="true">Dashboard</button>
+        <button class="tab-btn text-sm px-3 py-2 rounded-xl border border-gray-200" data-tab="tab-insights" aria-selected="false">Insights</button>
+        <button class="tab-btn text-sm px-3 py-2 rounded-xl border border-gray-200" data-tab="tab-ai" aria-selected="false">AI Analyst</button>
+        <button class="tab-btn text-sm px-3 py-2 rounded-xl border border-gray-200" data-tab="tab-reports" aria-selected="false">Reports</button>
+      </div>
     </div>
 
-    <!-- 3. JavaScript for Logic and AI Integration -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-    <script>
-        // --- 1. CONFIGURATION ---
-        // This MUST be replaced with your live deployed Render/AWS URL
-        // For local testing TONIGHT, use: "http://localhost:5000/api/forecast"
-        const PYTHON_API_URL = "https://inventoryai-jg44.onrender.com/api/forecast"; 
-        const CHAT_API_URL = "https://inventoryai-jg44.onrender.com/api/chat"; 
-        
-        // --- 2. GLOBAL STATE ---
-        let chatHistory = []; 
-        let isForecastAvailable = false; 
-        let PROCESSED_DATA_TEXT = null; 
-        let CURRENT_FORECAST = null; 
-        let CURRENT_METRICS = null; 
+    <!-- Status -->
+    <div class="mt-4 card p-4 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <span id="backendDot" class="inline-block w-2.5 h-2.5 rounded-full bg-gray-300"></span>
+        <span id="backendStatus" class="text-sm muted">Checking backend…</span>
+      </div>
+      <div class="text-sm muted">
+        Forecast model: <span class="font-medium text-gray-900">Prophet (Units)</span>
+      </div>
+    </div>
 
-        // --- 3. CORE LOGIC ---
-        
-        // Appends a message to the chat UI
-        function appendMessage(sender, message, isUser = false) {
-            const chatWindow = document.getElementById('chatWindow');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = isUser ? 'user-message' : 'analyst-message';
-            messageDiv.innerHTML = message;
-            chatWindow.appendChild(messageDiv);
-            chatWindow.scrollTop = chatWindow.scrollHeight;
+    <!-- Main layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+
+      <!-- Left: Upload + Controls -->
+      <div class="lg:col-span-1">
+        <div class="card p-4">
+          <h2 class="font-semibold">Upload CSV</h2>
+          <p class="text-sm muted mt-1">We automatically parse common POS exports.</p>
+
+          <div class="mt-3">
+            <input id="fileInput" type="file" accept=".csv,text/csv" class="block w-full text-sm" />
+          </div>
+
+          <div class="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs muted">Forecast horizon</label>
+              <select id="horizonSelect" class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+                <option value="7" selected>7 days</option>
+                <option value="14">14 days</option>
+                <option value="30">30 days</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs muted">Search items</label>
+              <input id="searchInput" type="text" placeholder="e.g. Coke, Milk"
+                     class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+            </div>
+          </div>
+
+          <div class="mt-4 flex gap-2">
+            <button id="btnForecast"
+              class="px-3 py-2 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700">
+              Generate forecast
+            </button>
+            <button id="btnClear"
+              class="px-3 py-2 rounded-xl text-sm font-medium border border-gray-200 hover:bg-gray-100">
+              Clear
+            </button>
+          </div>
+
+          <div id="uploadMeta" class="mt-3 text-xs muted"></div>
+
+          <div id="errorBox" class="mt-4 hide rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"></div>
+        </div>
+
+        <!-- KPI cards -->
+        <div class="grid grid-cols-2 gap-3 mt-4">
+          <div class="card p-4">
+            <div class="text-xs muted">Days covered</div>
+            <div id="kpiDays" class="text-xl font-semibold mt-1">—</div>
+          </div>
+          <div class="card p-4">
+            <div class="text-xs muted">Items detected</div>
+            <div id="kpiItems" class="text-xl font-semibold mt-1">—</div>
+          </div>
+          <div class="card p-4">
+            <div class="text-xs muted">Records processed</div>
+            <div id="kpiRecords" class="text-xl font-semibold mt-1">—</div>
+          </div>
+          <div class="card p-4">
+            <div class="text-xs muted">Horizon</div>
+            <div id="kpiHorizon" class="text-xl font-semibold mt-1">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Tabs content -->
+      <div class="lg:col-span-2 space-y-4">
+
+        <!-- Dashboard tab -->
+        <section id="tab-dashboard" class="card p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="font-semibold">Reorder recommendations</h2>
+              <p class="text-sm muted mt-1">Total predicted demand (units) over the selected horizon.</p>
+            </div>
+            <div class="text-xs muted">Sorted: highest demand first</div>
+          </div>
+
+          <div class="mt-3 overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="text-left text-xs muted border-b">
+                  <th class="py-2 pr-4">Item</th>
+                  <th class="py-2 pr-4">Category</th>
+                  <th class="py-2 pr-4 text-right">Units</th>
+                  <th class="py-2 pr-0 text-right">Est $</th>
+                </tr>
+              </thead>
+              <tbody id="forecastTable" class="divide-y"></tbody>
+            </table>
+          </div>
+
+          <div id="emptyForecast" class="mt-4 text-sm muted">
+            Upload a CSV and click <span class="font-medium text-gray-900">Generate forecast</span>.
+          </div>
+        </section>
+
+        <!-- Insights tab -->
+        <section id="tab-insights" class="card p-4 hide">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h2 class="font-semibold">Insights</h2>
+              <p class="text-sm muted mt-1">Signals based on your recent sales vs forecasted demand.</p>
+            </div>
+          </div>
+
+          <!-- Trend chart -->
+          <div class="mt-4">
+            <div class="flex items-center justify-between">
+              <div class="text-sm font-medium">Demand trend (recent)</div>
+              <div class="text-xs muted">Total units per day</div>
+            </div>
+            <div class="mt-2" style="height: 220px;">
+              <canvas id="trendChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Insight grids -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+            <div class="card p-4">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-medium">Stockout risk</div>
+                <span class="text-xs muted" id="stockoutCount">—</span>
+              </div>
+              <p class="text-xs muted mt-1">Forecasted daily demand is much higher than your recent baseline.</p>
+              <div id="stockoutList" class="mt-3 space-y-2"></div>
+              <div id="stockoutEmpty" class="mt-3 text-sm muted hide">No strong stockout risks detected.</div>
+            </div>
+
+            <div class="card p-4">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-medium">Slow movers</div>
+                <span class="text-xs muted" id="slowCount">—</span>
+              </div>
+              <p class="text-xs muted mt-1">Low forecast vs baseline — consider ordering less or discounting.</p>
+              <div id="slowList" class="mt-3 space-y-2"></div>
+              <div id="slowEmpty" class="mt-3 text-sm muted hide">No slow movers detected.</div>
+            </div>
+
+            <div class="card p-4">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-medium">Rising demand</div>
+                <span class="text-xs muted" id="riseCount">—</span>
+              </div>
+              <p class="text-xs muted mt-1">Moderate demand lift vs baseline.</p>
+              <div id="riseList" class="mt-3 space-y-2"></div>
+              <div id="riseEmpty" class="mt-3 text-sm muted hide">No rising-demand flags detected.</div>
+            </div>
+
+            <div class="card p-4">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-medium">Declining demand</div>
+                <span class="text-xs muted" id="declineCount">—</span>
+              </div>
+              <p class="text-xs muted mt-1">Demand is trending down vs baseline.</p>
+              <div id="declineList" class="mt-3 space-y-2"></div>
+              <div id="declineEmpty" class="mt-3 text-sm muted hide">No declining-demand flags detected.</div>
+            </div>
+          </div>
+
+          <!-- Category share -->
+          <div class="card p-4 mt-4">
+            <div class="flex items-center justify-between">
+              <div class="text-sm font-medium">Category demand share</div>
+              <div class="text-xs muted">Forecast units by category</div>
+            </div>
+            <div id="categoryList" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2"></div>
+            <div id="categoryEmpty" class="mt-3 text-sm muted hide">No category data available.</div>
+          </div>
+        </section>
+
+        <!-- AI Analyst tab -->
+        <section id="tab-ai" class="card p-4 hide">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h2 class="font-semibold">AI Analyst</h2>
+              <p class="text-sm muted mt-1">Powered by <span class="font-medium text-gray-900">GPT-4o mini</span></p>
+            </div>
+          </div>
+
+          <div class="mt-4 card p-4 bg-gray-50 border-gray-200">
+            <div class="text-sm font-medium">Summary</div>
+            <div id="aiSummary" class="mt-2 text-sm text-gray-800 leading-relaxed">
+              Generate a forecast to see an AI summary.
+            </div>
+          </div>
+
+          <div class="mt-4">
+            <div class="text-sm font-medium">Ask a question</div>
+            <div class="mt-2 flex gap-2">
+              <input id="aiQuestion" type="text"
+                     placeholder="Ask about reorder quantities, demand changes, and risk flags."
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+              <button id="btnAsk"
+                class="px-3 py-2 rounded-xl text-sm font-medium bg-gray-900 text-white hover:bg-black">
+                Ask
+              </button>
+            </div>
+            <div id="aiAnswer" class="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-wrap"></div>
+          </div>
+        </section>
+
+        <!-- Reports tab -->
+        <section id="tab-reports" class="card p-4 hide">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h2 class="font-semibold">Reports</h2>
+              <p class="text-sm muted mt-1">Download a clean PDF summary for the business owner.</p>
+            </div>
+            <button id="btnPDF"
+              class="px-3 py-2 rounded-xl text-sm font-medium border border-gray-200 hover:bg-gray-100">
+              Download PDF
+            </button>
+          </div>
+
+          <div class="mt-4 card p-4 bg-gray-50 border-gray-200">
+            <div class="text-sm font-medium">What’s included</div>
+            <ul class="mt-2 text-sm muted list-disc ml-5 space-y-1">
+              <li>Summary (items, days covered, horizon)</li>
+              <li>Top reorder recommendations</li>
+              <li>Stockout risks and slow movers</li>
+              <li>AI Analyst summary (if available)</li>
+            </ul>
+          </div>
+
+          <div id="pdfError" class="mt-4 hide rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"></div>
+        </section>
+
+      </div>
+    </div>
+
+    <div class="mt-6 text-xs muted">
+      <span class="mono">API:</span> <span class="mono" id="apiBaseLabel"></span>
+    </div>
+  </div>
+
+<script>
+  // =========================
+  // API base logic
+  // Local dev: backend on 127.0.0.1:5000
+  // Production Netlify: use relative "/api" via netlify.toml proxy
+  // =========================
+  const isLocal = (location.hostname === "localhost" || location.hostname === "127.0.0.1");
+  const API_BASE = (window.API_BASE !== undefined)
+    ? window.API_BASE
+    : (isLocal ? "http://127.0.0.1:5000" : ""); // empty => same-origin (Netlify redirect)
+
+  document.getElementById("apiBaseLabel").textContent = API_BASE || "(proxied via Netlify)";
+
+  // =========================
+  // State
+  // =========================
+  let rawCSV = "";
+  let lastResult = null;
+  let trendChart = null;
+
+  // Helpers
+  const $ = (id) => document.getElementById(id);
+  function show(el){ el.classList.remove("hide"); }
+  function hide(el){ el.classList.add("hide"); }
+
+  function setError(msg){
+    const box = $("errorBox");
+    if (!msg) { hide(box); box.textContent = ""; return; }
+    box.textContent = msg;
+    show(box);
+  }
+
+  function setPdfError(msg){
+    const box = $("pdfError");
+    if (!msg) { hide(box); box.textContent = ""; return; }
+    box.textContent = msg;
+    show(box);
+  }
+
+  function fmt(n){
+    if (n === null || n === undefined) return "—";
+    const x = Number(n);
+    if (!isFinite(x)) return "—";
+    return x.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  }
+
+  function money(n){
+    if (n === null || n === undefined) return "—";
+    const x = Number(n);
+    if (!isFinite(x)) return "—";
+    return x.toLocaleString(undefined, { style:"currency", currency:"USD" });
+  }
+
+  function escapeHtml(s){
+    return String(s ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function insightRow(title, right, sub){
+    return `
+      <div class="flex items-start justify-between gap-3 p-3 rounded-xl border border-gray-200 bg-white">
+        <div class="min-w-0">
+          <div class="text-sm font-medium truncate">${escapeHtml(title)}</div>
+          ${sub ? `<div class="text-xs muted mt-0.5">${escapeHtml(sub)}</div>` : ""}
+        </div>
+        <div class="text-xs text-gray-700 whitespace-nowrap">${escapeHtml(right)}</div>
+      </div>
+    `;
+  }
+
+  // =========================
+  // Tabs (menu)
+  // =========================
+  function activateTab(tabId){
+    const tabs = ["tab-dashboard","tab-insights","tab-ai","tab-reports"];
+    tabs.forEach(id => {
+      const el = $(id);
+      if (!el) return;
+      el.classList.toggle("hide", id !== tabId);
+    });
+
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      const active = (btn.dataset.tab === tabId);
+      btn.setAttribute("aria-selected", active ? "true" : "false");
+      btn.blur(); // avoids weird highlight in some browsers
+    });
+  }
+
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => activateTab(btn.dataset.tab));
+  });
+
+  // =========================
+  // Backend health
+  // =========================
+  async function checkBackend(){
+    try{
+      const res = await fetch(`${API_BASE}/api/health`);
+      if (!res.ok) throw new Error("health failed");
+      const js = await res.json();
+      $("backendDot").className = "inline-block w-2.5 h-2.5 rounded-full bg-green-500";
+      $("backendStatus").textContent = `Backend connected • ${js.model || "ok"}`;
+    }catch(e){
+      $("backendDot").className = "inline-block w-2.5 h-2.5 rounded-full bg-red-500";
+      $("backendStatus").textContent = "Backend not running / not reachable.";
+    }
+  }
+
+  // =========================
+  // Upload
+  // =========================
+  $("fileInput").addEventListener("change", async (ev) => {
+    setError("");
+    setPdfError("");
+    lastResult = null;
+    rawCSV = "";
+
+    const file = ev.target.files?.[0];
+    if (!file) return;
+
+    rawCSV = await file.text();
+    $("uploadMeta").textContent = `${file.name} • ${(file.size/1024).toFixed(1)} KB`;
+    $("emptyForecast").textContent = "Click Generate forecast to see recommendations.";
+  });
+
+  // =========================
+  // Forecast
+  // =========================
+  async function runForecast(){
+    setError("");
+    setPdfError("");
+    $("aiAnswer").textContent = "";
+
+    if (!rawCSV || rawCSV.trim().length < 5){
+      setError("Please upload a CSV file first.");
+      return;
+    }
+
+    const horizon_days = Number($("horizonSelect").value) || 7;
+
+    $("btnForecast").disabled = true;
+    $("btnForecast").textContent = "Generating…";
+
+    try{
+      const res = await fetch(`${API_BASE}/api/forecast`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ csv: rawCSV, horizon_days })
+      });
+
+      const js = await res.json();
+      if (!res.ok) throw new Error(js?.error || `Server error ${res.status}`);
+
+      lastResult = js;
+      renderAll();
+      activateTab("tab-dashboard");
+    }catch(e){
+      setError(String(e.message || e));
+    }finally{
+      $("btnForecast").disabled = false;
+      $("btnForecast").textContent = "Generate forecast";
+    }
+  }
+
+  $("btnForecast").addEventListener("click", runForecast);
+
+  $("btnClear").addEventListener("click", () => {
+    rawCSV = "";
+    lastResult = null;
+    $("fileInput").value = "";
+    $("uploadMeta").textContent = "";
+    $("forecastTable").innerHTML = "";
+    $("emptyForecast").textContent = "Upload a CSV and click Generate forecast.";
+    $("kpiDays").textContent = "—";
+    $("kpiItems").textContent = "—";
+    $("kpiRecords").textContent = "—";
+    $("kpiHorizon").textContent = "—";
+    $("aiSummary").textContent = "Generate a forecast to see an AI summary.";
+    $("aiAnswer").textContent = "";
+    $("searchInput").value = "";
+    clearInsightsUI();
+    setError("");
+    setPdfError("");
+    if (trendChart){ trendChart.destroy(); trendChart = null; }
+    activateTab("tab-dashboard");
+  });
+
+  // Search filter
+  $("searchInput").addEventListener("input", () => {
+    if (!lastResult?.forecast) return;
+    renderForecastTable();
+  });
+
+  // =========================
+  // Rendering
+  // =========================
+  function renderAll(){
+    renderKPIs();
+    renderForecastTable();
+    renderInsights();
+    renderAISummary();
+  }
+
+  function renderKPIs(){
+    const m = lastResult?.metrics || {};
+    $("kpiDays").textContent = m.DAYS_COVERED ?? "—";
+    $("kpiItems").textContent = m.NUM_ITEMS ?? "—";
+    $("kpiRecords").textContent = m.TOTAL_RECORDS ?? "—";
+    $("kpiHorizon").textContent = `${m.HORIZON_DAYS ?? $("horizonSelect").value ?? "—"}d`;
+  }
+
+  function renderForecastTable(){
+    const forecast = lastResult?.forecast || [];
+    const q = ($("searchInput").value || "").trim().toLowerCase();
+
+    const rows = forecast.filter(r => {
+      if (!q) return true;
+      const name = String(r.item_name || "").toLowerCase();
+      const cat = String(r.category || "").toLowerCase();
+      return name.includes(q) || cat.includes(q);
+    });
+
+    const tbody = $("forecastTable");
+    tbody.innerHTML = "";
+
+    if (!rows.length){
+      $("emptyForecast").classList.remove("hide");
+      $("emptyForecast").textContent = forecast.length ? "No items match your search." : "Upload a CSV and click Generate forecast.";
+      return;
+    }
+
+    $("emptyForecast").classList.add("hide");
+
+    rows.forEach(r => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="py-2 pr-4">
+          <div class="font-medium">${escapeHtml(r.item_name || "")}</div>
+        </td>
+        <td class="py-2 pr-4">
+          <div class="text-xs muted">${escapeHtml(r.category || "General")}</div>
+        </td>
+        <td class="py-2 pr-4 text-right">
+          <div class="font-semibold">${fmt(r.reorder_qty)}</div>
+        </td>
+        <td class="py-2 pr-0 text-right">
+          <div class="font-semibold">${money(r.est_revenue)}</div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function clearInsightsUI(){
+    ["stockoutList","slowList","riseList","declineList","categoryList"].forEach(id => $(id).innerHTML = "");
+    ["stockoutEmpty","slowEmpty","riseEmpty","declineEmpty","categoryEmpty"].forEach(id => hide($(id)));
+    ["stockoutCount","slowCount","riseCount","declineCount"].forEach(id => $(id).textContent = "—");
+  }
+
+  function renderInsights(){
+    clearInsightsUI();
+
+    const insights = lastResult?.insights || {};
+    const trend = lastResult?.trend || [];
+    renderTrendChart(trend);
+
+    // Stockout
+    const stockouts = insights.stockout_risks || [];
+    $("stockoutCount").textContent = `${stockouts.length} flagged`;
+    if (!stockouts.length) show($("stockoutEmpty"));
+    stockouts.forEach(s => {
+      $("stockoutList").insertAdjacentHTML("beforeend",
+        insightRow(
+          s.item_name,
+          `${fmt(s.forecast_total_units)} units`,
+          `Growth ${s.growth_factor}× vs baseline (${fmt(s.baseline_daily_units)}/day)`
+        )
+      );
+    });
+
+    // Slow movers
+    const slows = insights.slow_movers || [];
+    $("slowCount").textContent = `${slows.length} flagged`;
+    if (!slows.length) show($("slowEmpty"));
+    slows.forEach(s => {
+      $("slowList").insertAdjacentHTML("beforeend",
+        insightRow(
+          s.item_name,
+          `${fmt(s.forecast_total_units)} units`,
+          `Baseline ${fmt(s.baseline_daily_units)}/day`
+        )
+      );
+    });
+
+    // Rising
+    const rising = insights.rising_demand || [];
+    $("riseCount").textContent = `${rising.length} flagged`;
+    if (!rising.length) show($("riseEmpty"));
+    rising.forEach(s => {
+      $("riseList").insertAdjacentHTML("beforeend",
+        insightRow(
+          s.item_name,
+          `${fmt(s.forecast_total_units)} units`,
+          `Growth ${s.growth_factor}×`
+        )
+      );
+    });
+
+    // Declining
+    const declining = insights.declining_demand || [];
+    $("declineCount").textContent = `${declining.length} flagged`;
+    if (!declining.length) show($("declineEmpty"));
+    declining.forEach(s => {
+      $("declineList").insertAdjacentHTML("beforeend",
+        insightRow(
+          s.item_name,
+          `${fmt(s.forecast_total_units)} units`,
+          `Growth ${s.growth_factor}×`
+        )
+      );
+    });
+
+    // Category share
+    const cats = insights.category_demand || [];
+    if (!cats.length) show($("categoryEmpty"));
+    cats.forEach(c => {
+      $("categoryList").insertAdjacentHTML("beforeend", `
+        <div class="flex items-center justify-between p-3 rounded-xl border border-gray-200 bg-white">
+          <div class="min-w-0">
+            <div class="text-sm font-medium truncate">${escapeHtml(c.category)}</div>
+            <div class="text-xs muted mt-0.5">${fmt(c.share)}% of forecasted units</div>
+          </div>
+          <div class="text-sm font-semibold">${fmt(c.forecast_units)}</div>
+        </div>
+      `);
+    });
+  }
+
+  function renderTrendChart(trend){
+    const ctx = $("trendChart").getContext("2d");
+    const labels = trend.map(p => p.date);
+    const values = trend.map(p => Number(p.total_units || 0));
+
+    if (trendChart){
+      trendChart.destroy();
+      trendChart = null;
+    }
+
+    trendChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "Total units",
+          data: values,
+          borderColor: "#2563eb",
+          backgroundColor: "rgba(37, 99, 235, 0.18)",
+          borderWidth: 2,
+          pointRadius: 2,
+          tension: 0.25,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#6b7280" }, grid: { color: "rgba(229,231,235,0.6)" } },
+          y: { ticks: { color: "#6b7280" }, grid: { color: "rgba(229,231,235,0.6)" } }
         }
-        
-        // **FIXED:** This function is now defined, resolving the ReferenceError
-        // Enables or disables the chat input
-        function toggleChat(enable) {
-            const chatInput = document.getElementById('chatInput');
-            const sendButton = document.getElementById('sendChat');
-            sendButton.disabled = !enable;
-            sendButton.classList.toggle('bg-indigo-600', enable);
-            sendButton.classList.toggle('text-white', enable);
-            sendButton.classList.toggle('bg-gray-300', !enable);
-            sendButton.classList.toggle('text-gray-500', !enable);
-            sendButton.classList.toggle('cursor-not-allowed', !enable);
-            chatInput.placeholder = enable ? "Ask about this forecast..." : "Upload data to start chat...";
-            chatInput.disabled = !enable;
-            isForecastAvailable = enable;
+      }
+    });
+  }
+
+  function renderAISummary(){
+    const s = lastResult?.ai_insight;
+    $("aiSummary").textContent = s ? s : "Generate a forecast to see an AI summary.";
+  }
+
+  // =========================
+  // AI chat
+  // =========================
+  $("btnAsk").addEventListener("click", async () => {
+    $("aiAnswer").textContent = "";
+    const q = ($("aiQuestion").value || "").trim();
+    if (!q){ $("aiAnswer").textContent = "Type a question first."; return; }
+    if (!lastResult){ $("aiAnswer").textContent = "Generate a forecast first."; return; }
+
+    $("btnAsk").disabled = true;
+    $("btnAsk").textContent = "Asking…";
+
+    try{
+      const res = await fetch(`${API_BASE}/api/chat`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          question: q,
+          forecast: lastResult.forecast,
+          metrics: lastResult.metrics,
+          insights: lastResult.insights,
+          horizon_days: lastResult.metrics?.HORIZON_DAYS || Number($("horizonSelect").value) || 7
+        })
+      });
+      const js = await res.json();
+      if (!res.ok) throw new Error(js?.error || `Server error ${res.status}`);
+      $("aiAnswer").textContent = js.response || "";
+    }catch(e){
+      $("aiAnswer").textContent = `Error: ${e.message || e}`;
+    }finally{
+      $("btnAsk").disabled = false;
+      $("btnAsk").textContent = "Ask";
+    }
+  });
+
+  // =========================
+  // PDF download
+  // =========================
+  $("btnPDF").addEventListener("click", async () => {
+    setPdfError("");
+    if (!lastResult){ setPdfError("Generate a forecast first."); return; }
+
+    $("btnPDF").disabled = true;
+    $("btnPDF").textContent = "Preparing…";
+
+    try{
+      const res = await fetch(`${API_BASE}/api/report/pdf`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          forecast: lastResult.forecast,
+          metrics: lastResult.metrics,
+          insights: lastResult.insights,
+          insight: lastResult.ai_insight || ""
+        })
+      });
+
+      const ct = res.headers.get("content-type") || "";
+      if (!res.ok){
+        let msg = `Server error ${res.status}`;
+        if (ct.includes("application/json")){
+          const js = await res.json();
+          msg = js?.error || msg;
         }
+        throw new Error(msg);
+      }
 
-        // Reads the user's uploaded file as raw text
-        function readUserFile() {
-            return new Promise((resolve, reject) => {
-                const fileInput = document.getElementById('fileUpload');
-                const file = fileInput.files[0];
-                if (!file) {
-                    reject(new Error('Please select a CSV file to upload.'));
-                }
-                if (!file.name.endsWith('.csv')) {
-                    reject(new Error('Only CSV files are supported.'));
-                }
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    PROCESSED_DATA_TEXT = e.target.result; 
-                    resolve(PROCESSED_DATA_TEXT);
-                };
-                reader.onerror = (e) => reject(new Error(`File read error: ${e.target.error.name}`));
-                reader.readAsText(file);
-            });
-        }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
 
-        // Renders the ITEM-LEVEL forecast as a BAR CHART
-        function renderChart(forecastData) {
-            const ctx = document.getElementById('forecastChart').getContext('2d');
-            
-            const data = {
-                labels: forecastData.map(row => row.item_name), // Item Names
-                datasets: [
-                    {
-                        label: 'Recommended Reorder Quantity',
-                        data: forecastData.map(row => row.reorder_qty), // Reorder Numbers
-                        backgroundColor: 'rgba(79, 70, 229, 0.8)', // Indigo
-                        borderColor: '#4f46e5',
-                        borderWidth: 2,
-                        borderRadius: 4,
-                    }
-                ]
-            };
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "InventoryAI_Report.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
 
-            if (window.forecastChartInstance) window.forecastChartInstance.destroy();
-            
-            window.forecastChartInstance = new Chart(ctx, {
-                type: 'bar', // This is a bar chart for item quantities
-                data: data,
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    scales: { 
-                        y: { beginAtZero: true, title: { display: true, text: 'Units to Reorder' } },
-                        x: { title: { display: true, text: 'Product' } }
-                    },
-                    plugins: { 
-                        legend: { display: false }, // Hide legend for a cleaner look
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return `Reorder: ${context.parsed.y} units`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-            document.getElementById('chartMessage').classList.add('hidden');
-        }
+      URL.revokeObjectURL(url);
+    }catch(e){
+      setPdfError(String(e.message || e));
+    }finally{
+      $("btnPDF").disabled = false;
+      $("btnPDF").textContent = "Download PDF";
+    }
+  });
 
-        // Updates the three metric cards
-        function updateMetrics(metrics) {
-            document.querySelector('[data-metric="mae"]').textContent = `${metrics.MAE.toFixed(1)} Units`;
-            document.querySelector('[data-metric="mape"]').textContent = `${metrics.ACCURACY.toFixed(1)}%`; 
-            document.querySelector('[data-metric="demand"]').textContent = `${metrics.DEMAND.toLocaleString('en-US', { maximumFractionDigits: 0 })} Units`;
-        }
-        
-        // **FIXED:** This function now correctly finds the 'downloadButton' ID
-        // Creates the data for the Download CSV button
-        function updateDownloadLink(forecastData) {
-            const csvContent = "data:text/csv;charset=utf-8," 
-                               + encodeURIComponent("Item,Reorder Quantity\n" 
-                               + forecastData.map(row => 
-                                   // Ensure item names with commas are wrapped in quotes
-                                   `"${row.item_name}",${row.reorder_qty}`
-                               ).join('\n'));
-            
-            const downloadButton = document.getElementById('downloadButton');
-            // This check prevents the 'cannot set properties of null' error
-            if (downloadButton) { 
-                downloadButton.href = csvContent;
-                downloadButton.download = `inventoryai_reorder_plan.csv`;
-                downloadButton.disabled = false;
-                downloadButton.classList.remove('bg-gray-400', 'cursor-not-allowed');
-                downloadButton.classList.add('bg-emerald-600', 'hover:bg-emerald-700');
-                downloadButton.textContent = "Download Reorder Plan (CSV)";
-            }
-        }
-
-        // --- 4. MAIN EVENT HANDLER (When user clicks "Generate Forecast") ---
-        document.getElementById('forecastButton').addEventListener('click', async () => {
-            const button = document.getElementById('forecastButton');
-            const buttonText = document.getElementById('buttonText');
-            const spinner = document.getElementById('loadingSpinner');
-            const status = document.getElementById('statusMessage');
-            
-            // 1. Reset UI
-            button.disabled = true;
-            buttonText.textContent = 'Forecasting...';
-            spinner.classList.remove('hidden');
-            status.classList.remove('text-red-500', 'text-green-600');
-            status.textContent = 'Processing request...';
-            status.classList.remove('hidden');
-            document.getElementById('chatWindow').innerHTML = ''; // Clear chat
-            toggleChat(false);
-            chatHistory = []; 
-            
-            try {
-                // 2. READ THE USER FILE
-                await readUserFile(); 
-                status.textContent = `File loaded. Sending to Python server for validation and simulation... (This may take 5-10 seconds)`;
-                
-                // 3. CALL PYTHON API (This is the "Brain")
-                const apiResponse = await fetch(PYTHON_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' }, // Send raw CSV text
-                    body: PROCESSED_DATA_TEXT
-                });
-
-                if (!apiResponse.ok) {
-                    const err = await apiResponse.json();
-                    throw new Error(err.error || `API Server Error ${apiResponse.status}`);
-                }
-
-                const result = await apiResponse.json();
-                
-                // 4. Update Global State
-                CURRENT_FORECAST = result.forecast; // This is now the item list
-                CURRENT_METRICS = result.metrics;
-
-                // 5. Process and Display Results
-                updateMetrics(CURRENT_METRICS);
-                renderChart(CURRENT_FORECAST); // Render the new bar chart
-                updateDownloadLink(CURRENT_FORECAST); // This will now work
-
-                // 6. Display AI Recommendation
-                // *** NEW FLOW: Add the first insight to the chat window ***
-                appendMessage("Analyst", result.ai_insight); // Post insight to chat
-                chatHistory.push({ sender: "Analyst", message: result.ai_insight });
-
-                toggleChat(true); // Enable chat
-                
-                status.textContent = 'Forecast complete. Recommendation ready.';
-                status.classList.add('text-green-600');
-
-            } catch (error) {
-                toggleChat(false); 
-                console.error('Forecast initiation failed:', error);
-                status.textContent = `Forecast failed: ${error.message}`;
-                status.classList.add('text-red-500');
-            } finally {
-                button.disabled = false;
-                buttonText.textContent = 'Generate Strategic Forecast';
-                spinner.classList.add('hidden');
-            }
-        });
-        
-        // --- 5. CHAT EVENT HANDLER (NOW LIVE) ---
-        const chatInput = document.getElementById('chatInput');
-        const sendChatButton = document.getElementById('sendChat');
-        
-        const handleChatSend = async () => {
-            const userMessage = chatInput.value.trim();
-            if (userMessage === '' || !isForecastAvailable) return;
-            
-            appendMessage("User", userMessage, true);
-            chatHistory.push({ sender: "User", message: userMessage });
-            chatInput.value = ''; // Clear input
-            sendChatButton.disabled = true;
-
-            try {
-                // Call the NEW chat API endpoint
-                const apiResponse = await fetch(CHAT_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        question: userMessage,
-                        forecast: CURRENT_FORECAST, // Send current context
-                        metrics: CURRENT_METRICS
-                    })
-                });
-
-                if (!apiResponse.ok) {
-                    const err = await apiResponse.json();
-                    throw new Error(err.error || `API Server Error ${apiResponse.status}`);
-                }
-                
-                const result = await apiResponse.json();
-                appendMessage("Analyst", result.response);
-                chatHistory.push({ sender: "Analyst", message: result.response });
-
-            } catch (error) {
-                console.error("Chat Error:", error);
-                appendMessage("Analyst", `<span class="text-red-500">❌ Service Error: ${error.message}</span>`);
-            } finally {
-                sendChatButton.disabled = false;
-                chatInput.focus();
-            }
-        };
-
-        sendChatButton.addEventListener('click', handleChatSend);
-        chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !sendChatButton.disabled) handleChatSend();
-        });
-
-        // --- 6. INITIALIZE PAGE ---
-        document.addEventListener('DOMContentLoaded', () => {
-            // **FIXED:** This code now runs *after* the page loads,
-            // so 'aiChat' and 'toggleChat' are guaranteed to exist.
-            toggleChat(false); // Start with chat disabled
-            
-            // Hide the old static recommendation box
-            const recBox = document.getElementById('aiRecommendation');
-            if (recBox) {
-                recBox.style.display = 'none';
-            }
-        });
-    </script>
+  // Init
+  checkBackend();
+  activateTab("tab-dashboard");
+</script>
 </body>
 </html>
-
