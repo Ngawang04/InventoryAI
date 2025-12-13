@@ -8,6 +8,8 @@
 
 **InventoryAI** is a lightweight, data-driven web application designed to help small businesses—such as bodegas, delis, and neighborhood retail stores—make smarter inventory decisions.
 
+🔗 **Live App:** https://inventoryaipro.netlify.app/
+
 By uploading POS (point-of-sale) CSV files, users instantly receive:
 - Accurate **unit-based demand forecasts**
 - Clear **reorder quantity recommendations**
@@ -154,4 +156,5 @@ Upload a CSV → choose forecast horizon → view insights, AI explanations, and
 - Prophet, OpenAI, Flask, Render, Netlify, and the open-source community
 
 For questions or issues, open a GitHub issue or reach out to a project author.
+
 
