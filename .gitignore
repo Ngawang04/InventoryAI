@@ -211,3 +211,7 @@ data/*.csv
 data/*.parquet
 data/*.gz
 data/processed/
+
+#python version
+.python-version
+
