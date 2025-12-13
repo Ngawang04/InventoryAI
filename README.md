@@ -113,7 +113,7 @@ InventoryAI helps owners:
 We use a Notion board for progress tracking:
 
 👉 **InventoryAI Project Tracker (Notion)**  
-https://www.notion.so/27d4d5b4186f8013aefbfa84767d86d4
+[https://www.notion.so/27d4d5b4186f8013aefbfa84767d86d4](https://www.notion.so/2c8164d716e08095a9c6efb0b32e9477?v=e1897bd4722c425a8204c7b3087035c1&source=copy_link)
 
 ---
 
@@ -154,3 +154,4 @@ Upload a CSV → choose forecast horizon → view insights, AI explanations, and
 - Prophet, OpenAI, Flask, Render, Netlify, and the open-source community
 
 For questions or issues, open a GitHub issue or reach out to a project author.
+
