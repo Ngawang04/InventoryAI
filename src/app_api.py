@@ -7,6 +7,9 @@ from typing import Optional, List, Dict, Any
 import numpy as np
 import pandas as pd
 
+from prophet.serialize import model_to_json, model_from_json  # optional, safe
+os.environ.setdefault("PROPHET_BACKEND", "CMDSTANPY")
+
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 
@@ -179,7 +182,6 @@ def prophet_forecast_units_per_item(daily: pd.DataFrame, horizon_days: int) -> L
         df_item["ds"] = pd.to_datetime(df_item["ds"])
         df_item["y"] = np.clip(df_item["y"].astype(float), 0, None)
 
-        # Prophet model for this item
         m = Prophet(
             seasonality_mode="multiplicative",
             daily_seasonality=False,
@@ -205,7 +207,7 @@ def prophet_forecast_units_per_item(daily: pd.DataFrame, horizon_days: int) -> L
 
 
 # =========================
-# Trend + Insights (legit)
+# Trend + Insights
 # =========================
 def build_trend(daily: pd.DataFrame, max_days: int = 60) -> List[Dict[str, Any]]:
     trend = daily.groupby("ds", as_index=False)["y"].sum().sort_values("ds")
@@ -275,7 +277,6 @@ def build_insights(daily: pd.DataFrame, forecast_rows: List[Dict[str, Any]], hor
 
         growth = (f_daily / b_daily) if b_daily > 0 else None
 
-        # Stockout risk: strong acceleration + volume guard
         if growth is not None and growth >= 1.5 and f_total >= 8 and b_daily >= 0.5:
             stockout_risks.append({
                 "item_name": item,
@@ -287,7 +288,6 @@ def build_insights(daily: pd.DataFrame, forecast_rows: List[Dict[str, Any]], hor
                 "trend_slope": round(slope, 3)
             })
 
-        # Rising demand
         if growth is not None and growth >= 1.25 and f_total >= 6:
             rising_demand.append({
                 "item_name": item,
@@ -297,7 +297,6 @@ def build_insights(daily: pd.DataFrame, forecast_rows: List[Dict[str, Any]], hor
                 "growth_factor": round(growth, 2)
             })
 
-        # Declining demand
         if growth is not None and growth <= 0.8 and b_daily >= 0.8:
             declining_demand.append({
                 "item_name": item,
@@ -307,7 +306,6 @@ def build_insights(daily: pd.DataFrame, forecast_rows: List[Dict[str, Any]], hor
                 "growth_factor": round(growth, 2)
             })
 
-        # Slow movers: consistently low velocity + low forecast
         if b_daily <= 0.5 and f_total <= max(4.0, 0.25 * horizon_days):
             slow_movers.append({
                 "item_name": item,
@@ -341,10 +339,10 @@ def build_insights(daily: pd.DataFrame, forecast_rows: List[Dict[str, Any]], hor
             "category_demand": "Category Demand Share"
         },
         "descriptions": {
-            "stockout_risks": "Items forecasting much higher daily demand than your recent average. Consider ordering earlier or adding buffer stock.",
-            "slow_movers": "Items with low recent velocity and low forecast. Consider reducing orders or running promotions.",
-            "rising_demand": "Items trending up vs your recent average (growth factor).",
-            "declining_demand": "Items trending down vs your recent average (growth factor).",
+            "stockout_risks": "Items forecasting much higher daily demand than your recent average.",
+            "slow_movers": "Items with low recent velocity and low forecast.",
+            "rising_demand": "Items trending up vs your recent average.",
+            "declining_demand": "Items trending down vs your recent average.",
             "category_demand": "Which categories will consume the most units over the selected horizon."
         },
         "stockout_risks": stockout_risks[:8],
@@ -359,7 +357,6 @@ def build_insights(daily: pd.DataFrame, forecast_rows: List[Dict[str, Any]], hor
 # LLM (optional)
 # =========================
 def llm_summary(metrics: Dict[str, Any], forecast: List[Dict[str, Any]], insights: Dict[str, Any], horizon_days: int) -> str:
-    # fallback (no key)
     if not client:
         top = forecast[0] if forecast else None
         if not top:
@@ -373,8 +370,7 @@ def llm_summary(metrics: Dict[str, Any], forecast: List[Dict[str, Any]], insight
     rows = "\n".join([f"- {r['item_name']}: {r['reorder_qty']} units" for r in top10])
 
     prompt = f"""
-You are an inventory analyst for a small business owner.
-Write a short, clear summary (max 6 bullet points).
+Write a short, practical summary (max 6 bullet points).
 
 Horizon: {horizon_days} days
 Records: {metrics.get('TOTAL_RECORDS')}
@@ -385,11 +381,6 @@ Top reorder list:
 
 Stockout risks: {len(insights.get('stockout_risks', []))}
 Slow movers: {len(insights.get('slow_movers', []))}
-
-Rules:
-- Be practical, not technical.
-- Mention the top 1-2 items and what action to take.
-- Mention stockout risks / slow movers counts if any.
 """
     try:
         resp = client.chat.completions.create(
@@ -415,7 +406,6 @@ def llm_chat(question: str, metrics: Dict[str, Any], forecast: List[Dict[str, An
     prompt = f"""
 User question: {question}
 
-Context:
 Horizon: {horizon_days} days
 Records: {metrics.get('TOTAL_RECORDS')}
 Items: {metrics.get('NUM_ITEMS')}
@@ -425,8 +415,6 @@ Top reorder list:
 
 Stockout risks: {len(insights.get('stockout_risks', []))}
 Slow movers: {len(insights.get('slow_movers', []))}
-
-Answer in simple terms. If you reference an item, use the exact item name.
 """
     resp = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -440,7 +428,7 @@ Answer in simple terms. If you reference an item, use the exact item name.
 
 
 # =========================
-# PDF helpers (robust)
+# PDF helpers
 # =========================
 def _break_long_tokens(text: str, max_token: int = 28) -> str:
     parts = str(text or "").split(" ")
@@ -567,14 +555,12 @@ def api_pdf():
         pdf.cell(0, 8, _safe_text("Top Reorder Recommendations (Units)"), ln=True)
         pdf.ln(1)
 
-        # Table header
         pdf.set_font("Helvetica", "B", 10)
         pdf.cell(110, 7, _safe_text("Item"), border=1)
         pdf.cell(30, 7, _safe_text("Category"), border=1)
         pdf.cell(25, 7, _safe_text("Units"), border=1, align="R")
         pdf.ln()
 
-        # Table rows (robust: wrap item names with multi_cell)
         pdf.set_font("Helvetica", "", 10)
         for r in top:
             name = _safe_text(str(r.get("item_name", "")))
@@ -585,7 +571,6 @@ def api_pdf():
             x0 = pdf.get_x()
             y0 = pdf.get_y()
 
-            # Item (wrap)
             pdf.set_xy(x0, y0)
             pdf.multi_cell(110, row_h, name, border=1)
 
@@ -594,18 +579,14 @@ def api_pdf():
             if used_h < row_h:
                 used_h = row_h
 
-            # Category
             pdf.set_xy(x0 + 110, y0)
             pdf.cell(30, used_h, cat, border=1)
 
-            # Units
             pdf.set_xy(x0 + 140, y0)
             pdf.cell(25, used_h, f"{units:.1f}", border=1, align="R")
 
-            # Next row
             pdf.set_xy(x0, y0 + used_h)
 
-        # Insight sections
         def _write_list(title: str, rows: List[Dict[str, Any]], fmt: str):
             if not rows:
                 return
@@ -649,5 +630,9 @@ def api_pdf():
         return jsonify({"error": "PDF generation failed: " + str(e)}), 500
 
 
+# =========================
+# Entry point (DEPLOYMENT READY)
+# =========================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True, threaded=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, threaded=True)
