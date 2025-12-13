@@ -1,0 +1,9 @@
+[build]
+  publish = "."        # Because your app uses plain index.html
+  command = ""         # No build step required
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://inventoryai-ktzo.onrender.com/api/:splat"
+  status = 200
+  force = true
