@@ -6,16 +6,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>InventoryAI</title>
 
+  <!-- Tailwind (dev-friendly). For production, bundle Tailwind properly. -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <style>
     .tab-btn[aria-selected="true"] { background: #111827; color: white; }
     .tab-btn[aria-selected="false"] { background: white; color: #111827; }
-    .tab-btn { -webkit-tap-highlight-color: transparent; }
-    .tab-btn:focus { outline: none; }
-    .tab-btn:focus-visible { outline: 2px solid rgba(59,130,246,0.6); outline-offset: 2px; }
-
     .card { border: 1px solid #e5e7eb; border-radius: 16px; background: white; }
     .muted { color: #6b7280; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
@@ -34,7 +33,7 @@
       </div>
 
       <!-- Menu -->
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <button class="tab-btn text-sm px-3 py-2 rounded-xl border border-gray-200" data-tab="tab-dashboard" aria-selected="true">Dashboard</button>
         <button class="tab-btn text-sm px-3 py-2 rounded-xl border border-gray-200" data-tab="tab-insights" aria-selected="false">Insights</button>
         <button class="tab-btn text-sm px-3 py-2 rounded-xl border border-gray-200" data-tab="tab-ai" aria-selected="false">AI Analyst</button>
@@ -60,7 +59,7 @@
       <div class="lg:col-span-1">
         <div class="card p-4">
           <h2 class="font-semibold">Upload CSV</h2>
-          <p class="text-sm muted mt-1">We’ll automatically parse common POS exports.</p>
+          <p class="text-sm muted mt-1">We automatically parse common POS exports.</p>
 
           <div class="mt-3">
             <input id="fileInput" type="file" accept=".csv,text/csv" class="block w-full text-sm" />
@@ -94,6 +93,7 @@
           </div>
 
           <div id="uploadMeta" class="mt-3 text-xs muted"></div>
+
           <div id="errorBox" class="mt-4 hide rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"></div>
         </div>
 
@@ -126,9 +126,9 @@
           <div class="flex items-center justify-between gap-3">
             <div>
               <h2 class="font-semibold">Reorder recommendations</h2>
-              <p class="text-sm muted mt-1">Total predicted demand (units) over your selected horizon.</p>
+              <p class="text-sm muted mt-1">Total predicted demand (units) over the selected horizon.</p>
             </div>
-            <div class="text-xs muted">Sort: highest demand first</div>
+            <div class="text-xs muted">Sorted: highest demand first</div>
           </div>
 
           <div class="mt-3 overflow-x-auto">
@@ -138,7 +138,7 @@
                   <th class="py-2 pr-4">Item</th>
                   <th class="py-2 pr-4">Category</th>
                   <th class="py-2 pr-4 text-right">Units</th>
-                  <th class="py-2 pr-0 text-right">Est. $</th>
+                  <th class="py-2 pr-0 text-right">Est $</th>
                 </tr>
               </thead>
               <tbody id="forecastTable" class="divide-y"></tbody>
@@ -152,9 +152,11 @@
 
         <!-- Insights tab -->
         <section id="tab-insights" class="card p-4 hide">
-          <div>
-            <h2 class="font-semibold">Insights</h2>
-            <p class="text-sm muted mt-1">Signals based on recent sales vs forecasted demand.</p>
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h2 class="font-semibold">Insights</h2>
+              <p class="text-sm muted mt-1">Signals based on your recent sales vs forecasted demand.</p>
+            </div>
           </div>
 
           <!-- Trend chart -->
@@ -175,6 +177,7 @@
                 <div class="text-sm font-medium">Stockout risk</div>
                 <span class="text-xs muted" id="stockoutCount">—</span>
               </div>
+              <p class="text-xs muted mt-1">Forecasted daily demand is much higher than your recent baseline.</p>
               <div id="stockoutList" class="mt-3 space-y-2"></div>
               <div id="stockoutEmpty" class="mt-3 text-sm muted hide">No strong stockout risks detected.</div>
             </div>
@@ -184,6 +187,7 @@
                 <div class="text-sm font-medium">Slow movers</div>
                 <span class="text-xs muted" id="slowCount">—</span>
               </div>
+              <p class="text-xs muted mt-1">Low forecast vs baseline — consider ordering less or discounting.</p>
               <div id="slowList" class="mt-3 space-y-2"></div>
               <div id="slowEmpty" class="mt-3 text-sm muted hide">No slow movers detected.</div>
             </div>
@@ -193,6 +197,7 @@
                 <div class="text-sm font-medium">Rising demand</div>
                 <span class="text-xs muted" id="riseCount">—</span>
               </div>
+              <p class="text-xs muted mt-1">Moderate demand lift vs baseline.</p>
               <div id="riseList" class="mt-3 space-y-2"></div>
               <div id="riseEmpty" class="mt-3 text-sm muted hide">No rising-demand flags detected.</div>
             </div>
@@ -202,6 +207,7 @@
                 <div class="text-sm font-medium">Declining demand</div>
                 <span class="text-xs muted" id="declineCount">—</span>
               </div>
+              <p class="text-xs muted mt-1">Demand is trending down vs baseline.</p>
               <div id="declineList" class="mt-3 space-y-2"></div>
               <div id="declineEmpty" class="mt-3 text-sm muted hide">No declining-demand flags detected.</div>
             </div>
@@ -220,9 +226,11 @@
 
         <!-- AI Analyst tab -->
         <section id="tab-ai" class="card p-4 hide">
-          <div>
-            <h2 class="font-semibold">AI Analyst</h2>
-            <p class="text-sm muted mt-1">Powered by <span class="font-medium text-gray-900">GPT-4o mini</span></p>
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h2 class="font-semibold">AI Analyst</h2>
+              <p class="text-sm muted mt-1">Powered by <span class="font-medium text-gray-900">GPT-4o mini</span></p>
+            </div>
           </div>
 
           <div class="mt-4 card p-4 bg-gray-50 border-gray-200">
@@ -236,14 +244,14 @@
             <div class="text-sm font-medium">Ask a question</div>
             <div class="mt-2 flex gap-2">
               <input id="aiQuestion" type="text"
-                     placeholder="Powered by GPT-4o mini — ask about reorder, demand, and risk flags."
+                     placeholder="Ask about reorder quantities, demand changes, and risk flags."
                      class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
               <button id="btnAsk"
                 class="px-3 py-2 rounded-xl text-sm font-medium bg-gray-900 text-white hover:bg-black">
                 Ask
               </button>
             </div>
-            <div id="aiAnswer" class="mt-3 text-sm text-gray-800 leading-relaxed"></div>
+            <div id="aiAnswer" class="mt-3 text-sm text-gray-800 leading-relaxed whitespace-pre-wrap"></div>
           </div>
         </section>
 
@@ -252,12 +260,22 @@
           <div class="flex items-start justify-between gap-3">
             <div>
               <h2 class="font-semibold">Reports</h2>
-              <p class="text-sm muted mt-1">Download a clean PDF report for the business owner.</p>
+              <p class="text-sm muted mt-1">Download a clean PDF summary for the business owner.</p>
             </div>
             <button id="btnPDF"
               class="px-3 py-2 rounded-xl text-sm font-medium border border-gray-200 hover:bg-gray-100">
               Download PDF
             </button>
+          </div>
+
+          <div class="mt-4 card p-4 bg-gray-50 border-gray-200">
+            <div class="text-sm font-medium">What’s included</div>
+            <ul class="mt-2 text-sm muted list-disc ml-5 space-y-1">
+              <li>Summary (items, days covered, horizon)</li>
+              <li>Top reorder recommendations</li>
+              <li>Stockout risks and slow movers</li>
+              <li>AI Analyst summary (if available)</li>
+            </ul>
           </div>
 
           <div id="pdfError" class="mt-4 hide rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"></div>
@@ -267,19 +285,22 @@
     </div>
 
     <div class="mt-6 text-xs muted">
-      <span class="mono">Backend:</span> <span class="mono" id="apiBaseLabel"></span>
+      <span class="mono">API:</span> <span class="mono" id="apiBaseLabel"></span>
     </div>
   </div>
 
 <script>
   // =========================
-  // API base (Netlify-ready)
-  // - Local: http://127.0.0.1:5000
-  // - Production: same-origin "/api" (use Netlify redirect to your Render backend)
+  // API base logic
+  // Local dev: backend on 127.0.0.1:5000
+  // Production Netlify: use relative "/api" via netlify.toml proxy
   // =========================
-  const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-  const API_BASE = window.API_BASE || (isLocal ? "http://127.0.0.1:5000" : "");
-  document.getElementById("apiBaseLabel").textContent = API_BASE || "(same origin)";
+  const isLocal = (location.hostname === "localhost" || location.hostname === "127.0.0.1");
+  const API_BASE = (window.API_BASE !== undefined)
+    ? window.API_BASE
+    : (isLocal ? "http://127.0.0.1:5000" : ""); // empty => same-origin (Netlify redirect)
+
+  document.getElementById("apiBaseLabel").textContent = API_BASE || "(proxied via Netlify)";
 
   // =========================
   // State
@@ -288,9 +309,7 @@
   let lastResult = null;
   let trendChart = null;
 
-  // =========================
   // Helpers
-  // =========================
   const $ = (id) => document.getElementById(id);
   function show(el){ el.classList.remove("hide"); }
   function hide(el){ el.classList.add("hide"); }
@@ -316,11 +335,11 @@
     return x.toLocaleString(undefined, { maximumFractionDigits: 1 });
   }
 
-  function fmtMoney(n){
+  function money(n){
     if (n === null || n === undefined) return "—";
     const x = Number(n);
     if (!isFinite(x)) return "—";
-    return x.toLocaleString(undefined, { style: "currency", currency: "USD" });
+    return x.toLocaleString(undefined, { style:"currency", currency:"USD" });
   }
 
   function escapeHtml(s){
@@ -345,20 +364,20 @@
   }
 
   // =========================
-  // Tabs
+  // Tabs (menu)
   // =========================
   function activateTab(tabId){
     const tabs = ["tab-dashboard","tab-insights","tab-ai","tab-reports"];
     tabs.forEach(id => {
       const el = $(id);
       if (!el) return;
-      if (id === tabId) el.classList.remove("hide");
-      else el.classList.add("hide");
+      el.classList.toggle("hide", id !== tabId);
     });
 
     document.querySelectorAll(".tab-btn").forEach(btn => {
-      const isActive = btn.dataset.tab === tabId;
-      btn.setAttribute("aria-selected", isActive ? "true" : "false");
+      const active = (btn.dataset.tab === tabId);
+      btn.setAttribute("aria-selected", active ? "true" : "false");
+      btn.blur(); // avoids weird highlight in some browsers
     });
   }
 
@@ -367,7 +386,7 @@
   });
 
   // =========================
-  // Backend health check
+  // Backend health
   // =========================
   async function checkBackend(){
     try{
@@ -378,12 +397,12 @@
       $("backendStatus").textContent = `Backend connected • ${js.model || "ok"}`;
     }catch(e){
       $("backendDot").className = "inline-block w-2.5 h-2.5 rounded-full bg-red-500";
-      $("backendStatus").textContent = "Backend not running. Start Flask on port 5000 first.";
+      $("backendStatus").textContent = "Backend not running / not reachable.";
     }
   }
 
   // =========================
-  // File upload
+  // Upload
   // =========================
   $("fileInput").addEventListener("change", async (ev) => {
     setError("");
@@ -400,7 +419,7 @@
   });
 
   // =========================
-  // Forecast fetch
+  // Forecast
   // =========================
   async function runForecast(){
     setError("");
@@ -425,9 +444,7 @@
       });
 
       const js = await res.json();
-      if (!res.ok){
-        throw new Error(js?.error || `Server error ${res.status}`);
-      }
+      if (!res.ok) throw new Error(js?.error || `Server error ${res.status}`);
 
       lastResult = js;
       renderAll();
@@ -484,7 +501,7 @@
     $("kpiDays").textContent = m.DAYS_COVERED ?? "—";
     $("kpiItems").textContent = m.NUM_ITEMS ?? "—";
     $("kpiRecords").textContent = m.TOTAL_RECORDS ?? "—";
-    $("kpiHorizon").textContent = `${m.HORIZON_DAYS ?? ($("horizonSelect").value || "—")}d`;
+    $("kpiHorizon").textContent = `${m.HORIZON_DAYS ?? $("horizonSelect").value ?? "—"}d`;
   }
 
   function renderForecastTable(){
@@ -502,16 +519,15 @@
     tbody.innerHTML = "";
 
     if (!rows.length){
-      show($("emptyForecast"));
+      $("emptyForecast").classList.remove("hide");
       $("emptyForecast").textContent = forecast.length ? "No items match your search." : "Upload a CSV and click Generate forecast.";
       return;
     }
 
-    hide($("emptyForecast"));
+    $("emptyForecast").classList.add("hide");
 
     rows.forEach(r => {
       const tr = document.createElement("tr");
-      const estCost = r.projected_cost;
       tr.innerHTML = `
         <td class="py-2 pr-4">
           <div class="font-medium">${escapeHtml(r.item_name || "")}</div>
@@ -523,7 +539,7 @@
           <div class="font-semibold">${fmt(r.reorder_qty)}</div>
         </td>
         <td class="py-2 pr-0 text-right">
-          <div class="text-sm">${estCost != null ? fmtMoney(estCost) : "—"}</div>
+          <div class="font-semibold">${money(r.est_revenue)}</div>
         </td>
       `;
       tbody.appendChild(tr);
@@ -540,24 +556,64 @@
     clearInsightsUI();
 
     const insights = lastResult?.insights || {};
+    const trend = lastResult?.trend || [];
+    renderTrendChart(trend);
 
-    // Trend chart
-    renderTrendChart(lastResult?.trend || []);
+    // Stockout
+    const stockouts = insights.stockout_risks || [];
+    $("stockoutCount").textContent = `${stockouts.length} flagged`;
+    if (!stockouts.length) show($("stockoutEmpty"));
+    stockouts.forEach(s => {
+      $("stockoutList").insertAdjacentHTML("beforeend",
+        insightRow(
+          s.item_name,
+          `${fmt(s.forecast_total_units)} units`,
+          `Growth ${s.growth_factor}× vs baseline (${fmt(s.baseline_daily_units)}/day)`
+        )
+      );
+    });
 
-    function renderBlock(listId, emptyId, countId, rows, mode){
-      $(countId).textContent = `${rows.length} flagged`;
-      if (!rows.length) show($(emptyId));
-      rows.forEach(s => {
-        const right = `${fmt(s.forecast_total_units)} units`;
-        const sub = `Baseline ${fmt(s.baseline_daily_units)}/day • ${fmt(s.growth_ratio)}×`;
-        $(listId).insertAdjacentHTML("beforeend", insightRow(s.item_name, right, sub));
-      });
-    }
+    // Slow movers
+    const slows = insights.slow_movers || [];
+    $("slowCount").textContent = `${slows.length} flagged`;
+    if (!slows.length) show($("slowEmpty"));
+    slows.forEach(s => {
+      $("slowList").insertAdjacentHTML("beforeend",
+        insightRow(
+          s.item_name,
+          `${fmt(s.forecast_total_units)} units`,
+          `Baseline ${fmt(s.baseline_daily_units)}/day`
+        )
+      );
+    });
 
-    renderBlock("stockoutList","stockoutEmpty","stockoutCount", insights.stockout_risks || []);
-    renderBlock("slowList","slowEmpty","slowCount", insights.slow_movers || []);
-    renderBlock("riseList","riseEmpty","riseCount", insights.rising_demand || []);
-    renderBlock("declineList","declineEmpty","declineCount", insights.declining_demand || []);
+    // Rising
+    const rising = insights.rising_demand || [];
+    $("riseCount").textContent = `${rising.length} flagged`;
+    if (!rising.length) show($("riseEmpty"));
+    rising.forEach(s => {
+      $("riseList").insertAdjacentHTML("beforeend",
+        insightRow(
+          s.item_name,
+          `${fmt(s.forecast_total_units)} units`,
+          `Growth ${s.growth_factor}×`
+        )
+      );
+    });
+
+    // Declining
+    const declining = insights.declining_demand || [];
+    $("declineCount").textContent = `${declining.length} flagged`;
+    if (!declining.length) show($("declineEmpty"));
+    declining.forEach(s => {
+      $("declineList").insertAdjacentHTML("beforeend",
+        insightRow(
+          s.item_name,
+          `${fmt(s.forecast_total_units)} units`,
+          `Growth ${s.growth_factor}×`
+        )
+      );
+    });
 
     // Category share
     const cats = insights.category_demand || [];
@@ -605,8 +661,8 @@
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { ticks: { color: "#6b7280" }, grid: { color: "rgba(229,231,235,0.65)" } },
-          y: { ticks: { color: "#6b7280" }, grid: { color: "rgba(229,231,235,0.65)" } }
+          x: { ticks: { color: "#6b7280" }, grid: { color: "rgba(229,231,235,0.6)" } },
+          y: { ticks: { color: "#6b7280" }, grid: { color: "rgba(229,231,235,0.6)" } }
         }
       }
     });
@@ -657,10 +713,7 @@
   // =========================
   $("btnPDF").addEventListener("click", async () => {
     setPdfError("");
-    if (!lastResult){
-      setPdfError("Generate a forecast first.");
-      return;
-    }
+    if (!lastResult){ setPdfError("Generate a forecast first."); return; }
 
     $("btnPDF").disabled = true;
     $("btnPDF").textContent = "Preparing…";
